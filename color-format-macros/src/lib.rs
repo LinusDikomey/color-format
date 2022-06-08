@@ -7,6 +7,7 @@ use quote::quote;
 
 mod convert;
 mod codes;
+mod parse;
 
 struct Args<F, P> {
     f: F,

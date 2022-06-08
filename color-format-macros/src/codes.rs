@@ -1,14 +1,14 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BaseColor {
-    Black,
-    Red,
-    Green,
-    Yellow,
-    Blue,
-    Magenta,
-    Cyan,
-    White,
+    Black = 0,
+    Red = 1,
+    Green = 2,
+    Yellow = 3,
+    Blue = 4,
+    Magenta = 5,
+    Cyan = 6,
+    White = 7,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,12 +19,6 @@ pub struct BasicColor { pub base: BaseColor, pub intensity: Intensity }
 impl BasicColor {
     pub fn new(base: BaseColor, intensity: Intensity) -> Self {
         Self { base, intensity }
-    }
-    pub fn normal(base: BaseColor) -> Self {
-        Self { base, intensity: Intensity::Normal }
-    }
-    pub fn bright(base: BaseColor) -> Self {
-        Self { base, intensity: Intensity::Bright }
     }
     pub fn ansi(self, background: bool) -> u8 {
         let offset = match (self.intensity, background) {
@@ -53,29 +47,38 @@ pub enum Color {
 impl Color {
     pub fn ansi(&self, s: &mut String, background: bool) {
         match self {
-            Color::Normal => add_ansi_code(s, [Code::DefaultForeground as u8]),
+            Color::Normal => add_ansi_code(s, [
+                if background { Code::DefaultBackground } else { Code::DefaultForeground } as u8
+            ]),
             Color::Basic(basic) => add_ansi_code(s, [basic.ansi(background)]),
-            Color::Rgb(_) => todo!(),
+            &Color::Rgb(RgbColor { r, g, b }) => add_ansi_code(s, [
+                if background { Code::SetBackground } else { Code::SetForeground } as u8,
+                2, r, g, b
+            ]),
         }
     }
+}
+impl Default for Color {
+    fn default() -> Self { Self::Normal }
 }
 
 // pub const RESET: u8 = 0;
 #[repr(u8)]
 pub enum Code {
+    Reset = 0,
     Bold = 1,
-    Dim = 2,
+    Faint = 2,
     Italic = 3,
     Underline = 4,
     Blink = 5,
     Reverse = 7,
     Conceal = 8,
     Strike = 9,
-    NoBold = 22,
+    NoBoldness = 22,
     NoItalic = 23,
     NoUnderline = 24,
     NoBlink = 25,
-    NoRevese = 27,
+    NoReverse = 27,
     NoConceal = 28,
     NoStrike = 29,
     SetForegroundBase = 30,
