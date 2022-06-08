@@ -1,0 +1,2 @@
+[workspace]
+members = ["color-format", "color-format-macros"]
