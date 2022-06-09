@@ -160,11 +160,29 @@ impl<'a> Iterator for StringParser<'a> {
                 let tag = &self.s[tag_start..tag_end];
                 Some(StringPart::StartCmd(CmdParser::parse_commands(tag)))
             }
+            // ignore all formatting inside curly braces
+            Some((str_start, '{')) => {
+                if matches!(self.chars.peek(), Some((_, '{'))) {
+                    // just an escaped curly, pass it on
+                    self.chars.next().unwrap();
+                    Some(StringPart::String("{{"))
+                } else {
+                    // find the closing brace and pass the string on
+                    Some(loop {
+                        let next = self.chars.next();
+                        match next {
+                            Some((end, '}')) => break StringPart::String(&self.s[str_start..=end]),
+                            None => break StringPart::String(&self.s[str_start..]),
+                            _ => ()
+                        }
+                    })
+                }
+            }
             Some((_, '>')) => Some(StringPart::EndCmd),
             Some((str_start, _)) => {
                 Some(StringPart::String(loop {
                     match self.chars.peek() {
-                        Some((end, '#' | '<' | '>')) => {
+                        Some((end, '#' | '>' | '{')) => {
                             break &self.s[str_start..*end];
                         }
                         None => break &self.s[str_start..],

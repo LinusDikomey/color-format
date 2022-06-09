@@ -40,6 +40,7 @@ macro_rules! diff {
                 } 
             }
         }
+        #[derive(Debug)]
         struct StateDiff {
             $( $member: Option<$t> ),*
         }
@@ -116,7 +117,7 @@ fn colored_fmt_string(s: &str) -> (String, String) {
     for item in parser {
         match item {
             StringPart::String(s) => {
-                if state.is_default() {
+                if state.is_default() && !applied_state.is_default() {
                     add_ansi_code(&mut out_str, [Code::Reset as u8]);
                 } else {
                     let diff = state.diff(&applied_state);
@@ -153,7 +154,6 @@ fn colored_fmt_string(s: &str) -> (String, String) {
             }
         }
     }
-    debug_assert!(state == State::default());
     let end_diff = state.diff(&applied_state);
     if end_diff.diff_count() != 0 {
         add_ansi_code(&mut out_str, [Code::Reset as u8]);
@@ -161,5 +161,6 @@ fn colored_fmt_string(s: &str) -> (String, String) {
     if !states.is_empty() {
         panic!("Not all opening '<' were closed!");
     }
+    assert!(state == State::default());
     (out_str, unformatted)
 }
