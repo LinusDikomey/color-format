@@ -42,9 +42,5 @@ pub fn unset_override() {
 }
 
 fn env_set(name: &str) -> bool {
-    let res = std::env::var(name);
-    match res.as_ref().map(|s| s.as_str()) {
-        Ok("0") | Err(_) => false,
-        _ => true
-    }
+    !matches!(std::env::var(name).as_ref().map(String::as_str), Ok("0") | Err(_))
 }

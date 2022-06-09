@@ -21,7 +21,7 @@ struct CmdParser<'a> {
 }
 impl<'a> CmdParser<'a> {
     pub fn parse_commands(s: &'a str) -> Vec<Cmd> {
-        s.split(';').map(|s| s.trim()).map(|s| Self { s }.parse_command()).collect()
+        s.split(';').map(str::trim).map(|s| Self { s }.parse_command()).collect()
     }
 
     fn skip_if(&mut self, prefix: &str) -> bool {
@@ -50,12 +50,12 @@ impl<'a> CmdParser<'a> {
     fn parse_command(&mut self) -> Cmd {
         let background = self.skip_if_any(["_", "bg:"]);
         let intensity = if self.skip_if("bright-") { Intensity::Bright }
-        else if self.s.ends_with("!") {
+        else if self.s.ends_with('!') {
             self.s = &self.s[..self.s.len() - 1];
             Intensity::Bright
         } else { Intensity::Normal };
         match Self::get_base_color(self.s) {
-            Some(base) => return Cmd::Color {
+            Some(base) => Cmd::Color {
                 color: Color::Basic(BasicColor::new(base, intensity)),
                 background
             },
@@ -65,7 +65,7 @@ impl<'a> CmdParser<'a> {
                         '{}' is not one of them", self.s);
                 }
                 if self.skip_if("rgb(") {
-                    let end = self.s.find(")").expect("Missing ')' in rgb tag");
+                    let end = self.s.find(')').expect("Missing ')' in rgb tag");
                     let args = &self.s[..end];
                     let mut split = args.split(',');
                     let msg = "Not enough arguments in rgb tag";
@@ -73,6 +73,9 @@ impl<'a> CmdParser<'a> {
                     let r = split.next().expect(msg).parse().expect(parse_msg);
                     let g = split.next().expect(msg).parse().expect(parse_msg);
                     let b = split.next().expect(msg).parse().expect(parse_msg);
+                    if split.next().is_some() {
+                        panic!("Too many components in an rgb tag. 3 components were expected");
+                    }
                     return Cmd::Color { color: Color::Rgb(RgbColor { r, g, b }), background };
                 }
                 if background {
@@ -108,10 +111,11 @@ pub struct StringParser<'a> {
 }
 impl<'a> StringParser<'a> {
     pub fn new(s: &'a str) -> Self {
-        Self { s: s, chars: s.char_indices().peekable() }
+        Self { s, chars: s.char_indices().peekable() }
     }
     fn skip_whitespace(&mut self) {
-        while let Some((_, ' ' | '\t' | '\n' | '\r')) = self.chars.peek() {
+        while let Some((_, c)) = self.chars.peek() {
+            if !c.is_whitespace() { break }
             self.chars.next();
         }
     }
@@ -143,7 +147,7 @@ impl<'a> Iterator for StringParser<'a> {
                 let tag_end = loop {
                     match self.chars.next().expect("Color tag expected") {
                         (end, '<') => break end,
-                        (end, ' ' | '\t' | '\n' | '\r') => {
+                        (end, c) if c.is_whitespace() => {
                             self.skip_whitespace();
                             if !matches!(self.chars.next(), Some((_, '<'))) {
                                 panic!("'<' expected after color tag");

@@ -30,6 +30,11 @@ impl<F: Parse, P: Parse> Parse for Args<F, P> {
         
     }
 }
+impl<F, P> Args<F, P> {
+    fn convert(self, macro_name: &str) -> TokenStream {
+        convert::colored_macro(None, self.fmt_str, self.fmt_args, macro_name)
+    }
+}
 struct LnArgs<F, P> {
     f: F,
     fmt: Option<(P, LitStr, Punctuated<Expr, Token![,]>)>,
@@ -44,11 +49,11 @@ impl<F: Parse, P: Parse> Parse for LnArgs<F, P> {
                 None
             } else {
                 let fmt_str = input.parse()?;
-                let fmt_args = if !input.is_empty() {
+                let fmt_args = if input.is_empty() {
+                    Punctuated::new()
+                } else {
                     input.parse::<Token![,]>()?;
                     Punctuated::parse_terminated(input)?
-                } else {
-                    Punctuated::new()
                 };
                 Some((f_punc, fmt_str, fmt_args))
             }
@@ -57,23 +62,12 @@ impl<F: Parse, P: Parse> Parse for LnArgs<F, P> {
     }
 }
 impl<F, P> LnArgs<F, P> {
-    fn convert(self, name: &str) -> TokenStream {
+    fn convert(self, macro_name: &str) -> TokenStream {
         if let Some((_, fmt_str, fmt_args)) = self.fmt {
-            convert::colored_macro(None, fmt_str, fmt_args, name)
+            convert::colored_macro(None, fmt_str, fmt_args, macro_name)
         } else {
-            let ident = Ident::new(name, Span::call_site().into());
+            let ident = Ident::new(macro_name, Span::call_site().into());
             quote!{ #ident!() }.into()
-        }
-    }
-}
-impl<P> LnArgs<Expr, P> {
-    fn convert_with_f(self, name: &str) -> TokenStream {
-        if let Some((_, fmt_str, fmt_args)) = self.fmt {
-            convert::colored_macro(Some(self.f), fmt_str, fmt_args, name)
-        } else {
-            let ident = Ident::new(name, Span::call_site().into());
-            let f = self.f;
-            quote!{ #ident!(#f) }.into()
         }
     }
 }
@@ -84,39 +78,22 @@ type ColorLnArgs = LnArgs<Nothing, Nothing>;
 type WriteArgs = Args<Expr, Comma>;
 type WriteLnArgs = LnArgs<Expr, Comma>;
 
-#[proc_macro]
-pub fn cformat(item: TokenStream) -> TokenStream {
-    let args: ColorArgs = parse_macro_input!(item);
-    convert::colored_macro(None, args.fmt_str, args.fmt_args, "format")
+macro_rules! basic_macros {
+    ($($args: ident => $($macro_name: ident: $name: ident),*);*) => {
+        $(
+            $(
+                #[proc_macro]
+                pub fn $macro_name(item: TokenStream) -> TokenStream {
+                    parse_macro_input!(item as $args).convert(stringify!($name))
+                }
+            )*
+        )*
+    };
 }
-
-#[proc_macro]
-pub fn cprint(item: TokenStream) -> TokenStream {
-    let args: ColorArgs = parse_macro_input!(item);
-    convert::colored_macro(None, args.fmt_str, args.fmt_args, "print")
-}
-
-#[proc_macro]
-pub fn cprintln(item: TokenStream) -> TokenStream {
-    let args: ColorLnArgs = parse_macro_input!(item);
-    args.convert("println")
-}
-
-#[proc_macro]
-pub fn ceprint(item: TokenStream) -> TokenStream {
-    let args: ColorArgs = parse_macro_input!(item);
-    convert::colored_macro(None, args.fmt_str, args.fmt_args, "eprint")
-}
-
-#[proc_macro]
-pub fn ceprintln(item: TokenStream) -> TokenStream {
-    if item.is_empty() {
-        quote!{ eprintln!() }.into()
-    } else {
-        let args: ColorLnArgs = parse_macro_input!(item);
-        args.convert("eprintln")
-    }
-}
+basic_macros!(
+    ColorArgs => cformat: format, cprint: print, ceprint: eprint;
+    ColorLnArgs => cprintln: println, ceprintln: eprintln
+);
 
 #[proc_macro]
 pub fn cwrite(item: TokenStream) -> TokenStream {
@@ -127,5 +104,12 @@ pub fn cwrite(item: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn cwriteln(item: TokenStream) -> TokenStream {
     let args: WriteLnArgs = parse_macro_input!(item);
-    args.convert_with_f("writeln")
+    let macro_name = "writeln";
+    if let Some((_, fmt_str, fmt_args)) = args.fmt {
+        convert::colored_macro(Some(args.f), fmt_str, fmt_args, macro_name)
+    } else {
+        let ident = Ident::new(macro_name, Span::call_site().into());
+        let f = args.f;
+        quote!{ #ident!(#f) }.into()
+    }
 }

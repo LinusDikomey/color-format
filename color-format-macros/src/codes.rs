@@ -45,13 +45,13 @@ pub enum Color {
     Rgb(RgbColor)
 }
 impl Color {
-    pub fn ansi(&self, s: &mut String, background: bool) {
+    pub fn ansi(self, s: &mut String, background: bool) {
         match self {
             Color::Normal => add_ansi_code(s, [
                 if background { Code::DefaultBackground } else { Code::DefaultForeground } as u8
             ]),
             Color::Basic(basic) => add_ansi_code(s, [basic.ansi(background)]),
-            &Color::Rgb(RgbColor { r, g, b }) => add_ansi_code(s, [
+            Color::Rgb(RgbColor { r, g, b }) => add_ansi_code(s, [
                 if background { Code::SetBackground } else { Code::SetForeground } as u8,
                 2, r, g, b
             ]),

@@ -6,18 +6,23 @@ use syn::{Ident, Expr, LitStr, punctuated::Punctuated, Token};
 
 pub(crate) fn colored_macro(f: Option<Expr>, fmt: LitStr, args: Punctuated<Expr, Token![,]>, emitted_macro: &str)
 -> proc_macro::TokenStream {
-    let (fmt_str, unformatted_str) = colored_fmt_string(fmt.value());
+    let (fmt_str, unformatted_str) = colored_fmt_string(&fmt.value());
     let macro_ident = Ident::new(emitted_macro, Span::call_site().into());
     let fmt_args = args.iter();
     let fmt_args2 = args.iter();
     let f = f.map_or_else(|| quote!{}, |f| quote!{ #f, });
-    quote! {
-        if ::color_format::config::CONFIG.colorize() {
-            #macro_ident!(#f #fmt_str, #(#fmt_args),*)
-        } else {
-            #macro_ident!(#f #unformatted_str, #(#fmt_args2),*)
-        }
-    }.into()
+    #[cfg(feature = "runtime_color")]
+    {
+        quote! {
+            if ::color_format::config::CONFIG.colorize() {
+                #macro_ident!(#f #fmt_str, #(#fmt_args),*)
+            } else {
+                #macro_ident!(#f #unformatted_str, #(#fmt_args2),*)
+            }
+        }.into()
+    }
+    #[cfg(not(feature = "runtime_color"))]
+    { quote! { #macro_ident!(#f #fmt_str, #(#fmt_args),*) }.into() }
 }
 
 macro_rules! diff {
@@ -38,7 +43,13 @@ macro_rules! diff {
         struct StateDiff {
             $( $member: Option<$t> ),*
         }
-        
+        impl StateDiff {
+            fn diff_count(&self) -> usize {
+                let mut c = 0;
+                $( if self.$member.is_some() { c += 1; } )*
+                c
+            }
+        }
     };
 }
 diff! {
@@ -86,7 +97,7 @@ impl Boldness {
             Boldness::Normal => Code::NoBoldness,
             Boldness::Bold => Code::Bold,
             Boldness::Faint => Code::Faint,
-        } as u8])
+        } as u8]);
     }
 }
 impl Default for Boldness {
@@ -95,8 +106,8 @@ impl Default for Boldness {
 
 /// Takes in a format string literal possibly containing color escapes like #green { ... }
 /// and converts them to a string with ansi escapes. Also returns a String with all escapes just taken out.
-fn colored_fmt_string(s: String) -> (String, String) {
-    let parser = StringParser::new(&s);
+fn colored_fmt_string(s: &str) -> (String, String) {
+    let parser = StringParser::new(s);
     let mut out_str = String::new();
     let mut unformatted = String::new();
     let mut states = Vec::new();
@@ -116,7 +127,7 @@ fn colored_fmt_string(s: String) -> (String, String) {
                 unformatted.push_str(s);
             }
             StringPart::StartCmd(cmds) => {
-                states.push(state.clone());
+                states.push(state);
                 for cmd in cmds {
                     match cmd {
                         Cmd::Color { color, background: false } => state.fg_color = color,
@@ -141,6 +152,11 @@ fn colored_fmt_string(s: String) -> (String, String) {
                 }
             }
         }
+    }
+    debug_assert!(state == State::default());
+    let end_diff = state.diff(&applied_state);
+    if end_diff.diff_count() != 0 {
+        add_ansi_code(&mut out_str, [Code::Reset as u8]);
     }
     if !states.is_empty() {
         panic!("Not all opening '<' were closed!");
