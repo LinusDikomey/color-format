@@ -14,7 +14,7 @@ pub(crate) fn colored_macro(f: Option<Expr>, fmt: LitStr, args: Punctuated<Expr,
     #[cfg(feature = "runtime_color")]
     {
         quote! {
-            if ::color_format::config::CONFIG.colorize() {
+            if ::color_format::config::config().colorize() {
                 #macro_ident!(#f #fmt_str, #(#fmt_args),*)
             } else {
                 #macro_ident!(#f #unformatted_str, #(#fmt_args2),*)

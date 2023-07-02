@@ -1,2 +1,3 @@
 [workspace]
 members = ["color-format", "color-format-macros"]
+resolver = "2"

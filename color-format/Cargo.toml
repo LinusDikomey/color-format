@@ -5,9 +5,7 @@ edition = "2021"
 
 [features]
 default = ["runtime_color"]
-runtime_color = ["lazy_static", "atty", "color-format-macros/runtime_color"]
+runtime_color = ["color-format-macros/runtime_color"]
 
 [dependencies]
 color-format-macros = { version = "0.1.0", path = "../color-format-macros", default-features = false }
-lazy_static = { version = "1.4", optional = true }
-atty = { version = "0.2", optional = true }

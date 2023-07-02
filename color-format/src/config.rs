@@ -1,9 +1,5 @@
 use ::core::sync::atomic::{AtomicBool, Ordering};
-use lazy_static::lazy_static;
-
-lazy_static! {
-    pub static ref CONFIG: Config = Config::find_out();
-}
+use std::{io::IsTerminal, sync::OnceLock};
 
 pub struct Config {
     colorize: bool,
@@ -15,8 +11,10 @@ impl Config {
         let colorize =
             env_set("CLICOLOR_FORCE") | env_set("CLICOLOR") | (
                 !env_set("NO_COLOR")
-                && atty::is(atty::Stream::Stdout)
-                && atty::is(atty::Stream::Stderr)
+                && std::io::stdout().is_terminal()
+                && std::io::stderr().is_terminal()
+                //&& atty::is(atty::Stream::Stdout)
+                //&& atty::is(atty::Stream::Stderr)
             );
         Self {
             colorize,
@@ -33,12 +31,19 @@ impl Config {
     }
 }
 
+static CONFIG: OnceLock<Config> = OnceLock::new();
+
+pub fn config() -> &'static Config {
+    CONFIG.get_or_init(Config::find_out)
+}
+
 pub fn set_override(colorize: bool) {
-    CONFIG.override_colorized.store(colorize, Ordering::Relaxed);
-    CONFIG.override_set.store(true, Ordering::Relaxed);
+    let config = config();
+    config.override_colorized.store(colorize, Ordering::Relaxed);
+    config.override_set.store(true, Ordering::Relaxed);
 }
 pub fn unset_override() {
-    CONFIG.override_set.store(false, Ordering::Relaxed);
+    config().override_set.store(false, Ordering::Relaxed);
 }
 
 fn env_set(name: &str) -> bool {
